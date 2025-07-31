@@ -1,4 +1,3 @@
-# 先安裝必要套件（若還沒安裝）
 # pip install yfinance pandas numpy scikit-learn MIDIUtil
 
 import yfinance as yf
@@ -34,61 +33,76 @@ model.fit(X_train, y_train)
 y_pred = model.predict(X_test)
 print(f"Accuracy: {accuracy_score(y_test, y_pred):.2f}")
 
-# 6. 設定音階與和弦
+# 6. 調性與和弦設定（C大調為主）
 c_major_scale = [60, 62, 64, 65, 67, 69, 71]  # C D E F G A B
-a_minor_scale = [57, 59, 60, 62, 64, 65, 67]  # A B C D E F G
-
-# 和弦（大三和弦 / 小三和弦）
-c_major_chord = [60, 64, 67]  # C E G
+# 對應漲時的常用大三和弦（包含在 C 大調裡）
+major_chords = {
+    'C': [60, 64, 67],  # C E G
+    'F': [65, 69, 72],  # F A C (C一個八度上)
+    'G': [67, 71, 74],  # G B D
+}
+# 漲時旋律音對應用哪個大三和弦
+note_to_chord_for_rise = {
+    60: 'C',  # C -> C major
+    62: 'G',  # D -> G major
+    64: 'C',  # E -> C major
+    65: 'F',  # F -> F major
+    67: 'G',  # G -> G major
+    69: 'F',  # A -> F major
+    71: 'G',  # B -> G major
+}
+# 跌時固定的小三和弦（A 小調的 root）
 a_minor_chord = [57, 60, 64]  # A C E
 
-# 7. 產生 MIDI：主旋律 + 和弦（兩軌）
+# 7. 產生 MIDI（主旋律 + 和弦）
 midi = MIDIFile(2)
 tempo = 100
 midi.addTempo(0, 0, tempo)
 midi.addTempo(1, 0, tempo)
 
-# 主旋律用鋼琴（預設 program 0）
+# 設定樂器：主旋律用鋼琴（program 0），和弦用弦樂背景（String Ensemble program 48）
 midi.addProgramChange(0, 0, 0, 0)
-# 和弦用弦樂背景（使用 String Ensemble program 48）
 midi.addProgramChange(1, 1, 0, 48)
 
-# 8. 依漲跌生成旋律與和弦（用 step 上/下邏輯）
-melody_idx = 0  # 主旋律起始在根音
+# 初始化旋律位置
+melody_idx = 0  # 在 C 大調裡的 index（從 C 開始）
 prev_pred = None
 
 for i, pred in enumerate(y_pred):
-    time = i  # 每個 timestep 一個節拍
+    time = i  # 每個 timestep 一拍
 
-    # 決定 scale 和根音邏輯
-    if pred == 1:  # 漲：C 大調
-        scale = c_major_scale
-        chord = c_major_chord
-    else:  # 跌：A 小調
-        scale = a_minor_scale
-        chord = a_minor_chord
-
-    # step logic：根據前一個預測調整位置
+    # 決定是否要上下移動（漲=上，跌=下），方向連續才移動
     if i == 0 or prev_pred is None or pred != prev_pred:
-        melody_idx = 0  # 轉換時回到根音
+        # 轉向或第一拍回到根音（C for 漲, C 也當作跌的起點再往下）
+        melody_idx = 0
     else:
         if pred == 1 and prev_pred == 1:
-            melody_idx = min(len(scale) - 1, melody_idx + 1)  # 連續漲往上走
+            # 連續漲：往上走一階（限界在 scale 內）
+            melody_idx = min(len(c_major_scale) - 1, melody_idx + 1)
         elif pred == 0 and prev_pred == 0:
-            melody_idx = max(0, melody_idx - 1)  # 連續跌往下走
+            # 連續跌：往下走一階
+            melody_idx = max(0, melody_idx - 1)
 
-    # 主旋律音符
-    pitch = scale[melody_idx]
+    pitch = c_major_scale[melody_idx]  # 主旋律音（都在 C 大調內）
+
+    # 加主旋律
     midi.addNote(0, 0, pitch, time, 1, 100)
 
-    # 加和弦（持續一拍）
+    # 決定和弦：漲用包含該音的大三和弦，跌用 Am 和弦
+    if pred == 1:
+        chord_root = note_to_chord_for_rise.get(pitch, 'C')
+        chord = major_chords[chord_root]
+    else:
+        chord = a_minor_chord
+
+    # 加和弦（伴奏）
     for chord_note in chord:
-        midi.addNote(1, 1, chord_note, time, 1, 60)  # 和弦音量略低
+        midi.addNote(1, 1, chord_note, time, 1, 60)
 
     prev_pred = pred
 
-# 9. 輸出 MIDI
-output_path = "tsmc_prediction_with_chords.mid"
+# 8. 輸出 MIDI
+output_path = "tsmc_prediction_chorded.mid"
 with open(output_path, "wb") as f:
     midi.writeFile(f)
 
