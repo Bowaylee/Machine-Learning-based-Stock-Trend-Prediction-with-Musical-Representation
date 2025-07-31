@@ -1,1 +1,25 @@
-# Machine-Learning-based-Stock-Trend-Prediction-with-Musical-Representation
+專案簡介:
+
+利用機器學習預測台積電（2330.TW）股價漲跌，並用音樂表示：
+
+漲 → C 大調（明亮、快節奏）
+
+跌 → A 小調（陰鬱、慢節奏）
+
+結合金融預測與音樂創作，讓股市趨勢「聽得見」。
+
+功能:
+
+下載台積電歷史股價（近1年）
+
+用過去5天股價訓練隨機森林模型
+
+根據預測結果生成 MIDI 音樂檔
+
+使用方式:
+
+執行程式，自動下載資料並訓練模型
+
+產生 tsmc_prediction.mid 音樂檔
+
+用支援 MIDI 的播放器打開收聽
